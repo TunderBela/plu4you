@@ -7,6 +7,7 @@
     <style>
         :root {
             --primary: #4a6fa5;
+            --primary-hover: #3b5984;
             --success: #2ecc71;
             --error: #e74c3c;
             --bg: #f8f9fa;
@@ -33,7 +34,10 @@
             flex-direction: column;
             align-items: center;
             gap: 20px;
-            width: 360px;
+            width: 100%;
+            max-width: 340px;
+            padding: 0 10px;
+            box-sizing: border-box;
         }
 
         /* 1. Timer / Stopwatch */
@@ -60,21 +64,25 @@
             display: flex;
             justify-content: space-between;
             width: 100%;
-            gap: 10px;
+            gap: 6px;
+            box-sizing: border-box;
         }
 
         .number-btn {
-            flex: 1;
-            height: 65px;
+            flex: 1 1 0px;
+            height: 60px;
             border-radius: 12px;
             border: 1px solid var(--border);
             background: var(--panel);
             color: var(--text);
-            font-size: 22px;
+            font-size: 20px;
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 8px rgba(0,0,0,0.03);
-            transition: transform 0.1s;
+            transition: transform 0.1s, opacity 0.2s;
+            padding: 0;
+            margin: 0;
+            min-width: 0;
         }
 
         .number-btn:active {
@@ -85,6 +93,7 @@
             background-color: var(--success) !important;
             color: white !important;
             border-color: var(--success) !important;
+            opacity: 1 !important;
         }
 
         .incorrect {
@@ -92,6 +101,10 @@
             color: white !important;
             border-color: var(--error) !important;
             animation: shake 0.2s ease;
+        }
+
+        .dimmed {
+            opacity: 0.3;
         }
 
         /* 3. Product Display Card */
@@ -109,6 +122,7 @@
             padding: 15px;
             box-sizing: border-box;
             text-align: center;
+            cursor: pointer;
         }
 
         #item-image {
@@ -126,15 +140,74 @@
             color: var(--text);
         }
 
+        .start-btn {
+            padding: 15px 35px;
+            font-size: 20px;
+            font-weight: bold;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(74, 111, 165, 0.2);
+            transition: background-color 0.2s;
+        }
+
+        .start-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
         .game-over-card {
             background: var(--panel);
-            padding: 40px;
+            padding: 25px 20px;
             border-radius: 24px;
             border: 2px solid var(--border);
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
             width: 100%;
             box-sizing: border-box;
+            cursor: default;
+        }
+
+        .score-list {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+            text-align: left;
+            display: inline-block;
+            width: 85%;
+        }
+
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 16px;
+        }
+
+        .score-item.new-record {
+            background-color: #e8f8f0;
+            color: #27ae60;
+            font-weight: bold;
+            border-radius: 6px;
+        }
+
+        .reset-btn {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--error);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: var(--error);
+            color: white;
         }
 
         @keyframes shake {
@@ -152,46 +225,41 @@
         <div id="button-row"></div>
 
         <div id="center-card">
+            <div id="start-screen">
+                <button class="start-btn" id="start-btn" disabled>Loading...</button>
+            </div>
             <img id="item-image" src="" alt="Item image">
-            <div id="item-name">Loading...</div>
+            <div id="item-name" style="display:none;"></div>
         </div>
     </div>
 
 <script>
-    const masterItemList = [
-        { plu: "16", item: "Pomegranate" },
-        { plu: "317", item: "Spring Onion" },
-        { plu: "44", item: "Gaia Melon" },
-        { plu: "45", item: "Honey Dew Melon" },
-        { plu: "11", item: "Lime" },
-        { plu: "95", item: "Baking Potatoes" },
-        { plu: "24", item: "Sweet Potatoes" },
-        { plu: "371", item: "Lemon" },
-        { plu: "365", item: "Medium Avocado" },
-        { plu: "366", item: "Large Avocado" },
-        { plu: "367", item: "XL Avocado" },
-        { plu: "43", item: "Mango" },
-        { plu: "428", item: "Red Apple" },
-        { plu: "147", item: "Water Melon" },
-        { plu: "335", item: "Garlic" },
-        { plu: "56", item: "Ginger" }
-    ];
+    const normalSheetUrl = 'https://docs.google.com/spreadsheets/d/1791CPO8J6Q2c-sN7xD7ymx_FMG3UaKdPc3386WrCu0o/edit?usp=drivesdk';
+    
+    const sheetId = normalSheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)[1];
+    const sheetCsvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
 
-    let remainingPool = [...masterItemList];
+    let masterItemList = [];
+    let remainingPool = [];
+    let totalItemsInRound = 0;
 
     const layoutContainer = document.getElementById('quiz-layout');
     const buttonRow = document.getElementById('button-row');
+    const centerCard = document.getElementById('center-card');
     const itemImage = document.getElementById('item-image');
     const itemName = document.getElementById('item-name');
     const timerDisplay = document.getElementById('timer');
+    const startScreen = document.getElementById('start-screen');
+    const startBtn = document.getElementById('start-btn');
 
     let currentTask = null;
     let isRoundOver = false;
+    let isGameRunning = false;
     
-    // Stopwatch variables
     let startTime;
     let timerInterval;
-    let penaltyTime = 0; // Accumulated penalty in milliseconds
+    let penaltyTime = 0;
+    let finalNumericTime = 0;
 
     itemImage.onload = function() {
         this.style.display = 'block';
@@ -200,12 +268,62 @@
         this.style.display = 'none';
     };
 
+    async function loadDataFromSheets() {
+        try {
+            const response = await fetch(sheetCsvUrl);
+            const csvText = await response.text();
+            
+            const lines = csvText.split('\n');
+            
+            for (let i = 1; i < lines.length; i++) {
+                const currentLine = lines[i].trim();
+                if (currentLine === '') continue;
+
+                const columns = currentLine.split(',');
+                if (columns.length >= 2) {
+                    masterItemList.push({
+                        plu: columns[0].trim(),
+                        item: columns[1].trim()
+                    });
+                }
+            }
+
+            if (masterItemList.length === 0) {
+                startBtn.innerText = "No data found";
+                return;
+            }
+
+            remainingPool = [...masterItemList];
+            totalItemsInRound = remainingPool.length;
+            
+            startBtn.innerText = "Start Game";
+            startBtn.disabled = false;
+            startBtn.addEventListener('click', (e) => startGame(e));
+
+        } catch (error) {
+            console.error("Failed to fetch sheet data:", error);
+            startBtn.innerText = "Loading Error";
+        }
+    }
+
+    function startGame(e) {
+        if (e) e.stopPropagation(); // Stop click bubbling up to the card help function
+
+        startScreen.style.display = 'none';
+        itemName.style.display = 'block';
+        isGameRunning = true;
+        
+        centerCard.addEventListener('click', triggerHelp);
+        
+        startTimer();
+        nextRound();
+    }
+
     function startTimer() {
         startTime = performance.now();
         timerInterval = setInterval(() => {
-            // Actual time = elapsed real time + penalty time
-            const elapsedTime = ((performance.now() - startTime) + penaltyTime) / 1000;
-            timerDisplay.innerText = elapsedTime.toFixed(1) + 's';
+            finalNumericTime = ((performance.now() - startTime) + penaltyTime) / 1000;
+            timerDisplay.innerText = finalNumericTime.toFixed(1) + 's';
         }, 100);
     }
 
@@ -215,6 +333,7 @@
 
     function nextRound() {
         if (remainingPool.length === 0) {
+            isGameRunning = false;
             stopTimer();
             endGame();
             return;
@@ -238,18 +357,19 @@
             options.push(selectedWrong.plu);
         }
 
-        // Shuffle options
         for (let i = options.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [options[i], options[j]] = [options[j], options[i]];
         }
 
-        // Render buttons horizontally
         options.forEach(pluCode => {
             const btn = document.createElement('button');
             btn.classList.add('number-btn');
             btn.innerText = pluCode;
-            btn.addEventListener('click', () => checkAnswer(pluCode, btn));
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                checkAnswer(pluCode, btn);
+            });
             buttonRow.appendChild(btn);
         });
     }
@@ -260,18 +380,11 @@
         if (selectedPlu === currentTask.plu) {
             btnElement.classList.add('correct');
             isRoundOver = true;
-            
-            // Immediate transition to the next item
             setTimeout(nextRound, 200);
         } else {
             btnElement.classList.add('incorrect');
-            
-            // Add 1 second (1000ms) penalty
             penaltyTime += 1000;
-            
-            // Flash the timer in red to signal penalty
             timerDisplay.classList.add('penalty');
-            
             setTimeout(() => {
                 btnElement.classList.remove('incorrect');
                 timerDisplay.classList.remove('penalty');
@@ -279,20 +392,87 @@
         }
     }
 
+    function triggerHelp() {
+        if (!isGameRunning || isRoundOver) return;
+        
+        isRoundOver = true;
+        const buttons = document.querySelectorAll('.number-btn');
+        
+        buttons.forEach(btn => {
+            if (btn.innerText === currentTask.plu) {
+                btn.classList.add('correct');
+            } else {
+                btn.classList.add('dimmed');
+            }
+        });
+
+        setTimeout(nextRound, 2000);
+    }
+
+    // Handles saving and loading scores based on saved seconds (higher is better)
+    function handleHighScores(calculatedScore) {
+        let scores = JSON.parse(localStorage.getItem('plu_point_scores')) || [];
+        scores.push(calculatedScore);
+        
+        // Sort descending (higher point score is better)
+        scores.sort((a, b) => b - a);
+        scores = scores.slice(0, 3);
+        localStorage.setItem('plu_point_scores', JSON.stringify(scores));
+        
+        const isNewRecord = scores[0] === calculatedScore;
+        return { scores: scores, isNewRecord: isNewRecord };
+    }
+
+    function resetLeaderboard() {
+        if (confirm("Are you sure you want to completely clear your high score leaderboard?")) {
+            localStorage.removeItem('plu_point_scores');
+            alert("Leaderboard cleared!");
+            location.reload();
+        }
+    }
+
     function endGame() {
+        buttonRow.style.display = 'none';
+        centerCard.style.cursor = 'default';
+        centerCard.removeEventListener('click', triggerHelp);
+        
+        // Base time calculation (3 seconds per item)
+        const baseTimeAllowed = totalItemsInRound * 3;
+        const finalScore = baseTimeAllowed - finalNumericTime;
+        
+        const scoreData = handleHighScores(finalScore);
+        
+        let listHtml = '<ul class="score-list">';
+        scoreData.scores.forEach((score, index) => {
+            const isCurrentRun = (score === finalScore);
+            const rowClass = isCurrentRun && scoreData.isNewRecord ? 'score-item new-record' : 'score-item';
+            const label = isCurrentRun && scoreData.isNewRecord ? `🥇 #${index+1} NEW BEST` : `#${index+1}`;
+            
+            // Format score text to show sign clearly
+            const scoreText = (score >= 0 ? '+' : '') + score.toFixed(1);
+            listHtml += `<li class="${rowClass}"><span>${label}</span><span>${scoreText}</span></li>`;
+        });
+        listHtml += '</ul>';
+
+        const finalScoreText = (finalScore >= 0 ? '+' : '') + finalScore.toFixed(1);
+
         layoutContainer.innerHTML = `
             <div class="game-over-card">
                 <h2>🏆 Quiz Completed!</h2>
-                <p>Your final time including penalties:</p>
-                <h3 style="font-size: 32px; color: var(--primary); margin: 15px 0;">${timerDisplay.innerText}</h3>
-                <button onclick="location.reload()" style="margin-top: 15px; padding: 12px 24px; font-size: 16px; font-weight: bold; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer;">Play Again</button>
+                <p>Time: <strong>${finalNumericTime.toFixed(1)}s</strong> (${totalItemsInRound} items)</p>
+                <p style="margin: 5px 0 15px 0;">Your Score: <strong style="font-size: 24px; color: ${finalScore >= 0 ? 'var(--success)' : 'var(--error)'};">${finalScoreText}</strong></p>
+                
+                <div style="margin-top: 10px; font-weight: bold; font-size: 13px; color: #718096; text-transform: uppercase; letter-spacing: 0.5px;">Personal Best Scores</div>
+                ${listHtml}
+                
+                <button onclick="location.reload()" style="margin-top: 10px; padding: 12px 24px; font-size: 16px; font-weight: bold; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; width: 85%;">Play Again</button>
+                <br>
+                <button class="reset-btn" onclick="resetLeaderboard()">Reset Leaderboard</button>
             </div>
         `;
     }
 
-    // Start everything
-    startTimer();
-    nextRound();
+    loadDataFromSheets();
 </script>
 
 </body>
